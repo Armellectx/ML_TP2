@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 
 dn = 50.
 h=10
-nepochs=2000
+nepochs=1000
 lr = 0.0001
 
 
@@ -49,9 +49,9 @@ crit = nn.MSELoss()
 
 #Model: simple RNN with a linear regression layer:
 
-class Mod(nn.Module):
+class Rnn(nn.Module):
     def __init__(self,nhid):
-        super(Mod, self).__init__()
+        super(Rnn, self).__init__()
         self.rnn = nn.RNN(1,nhid)
         self.mlp = nn.Linear(nhid,1)
 
@@ -122,7 +122,7 @@ def train(mod):
         print(epoch,"err",totloss,testloss)
         
     # Plot loss evolution
-    fig, (ax1, ax2) = plt.subplots(2)
+    _, (ax1, ax2) = plt.subplots(2)
     ax1.plot(plot_values["epoch"], plot_values["loss"], 'b', label='training loss')
     ax1.plot(plot_values["epoch"], plot_values["test_loss"], 'g', label='validation loss')
     ax1.set(xlabel='epoch', ylabel='MSE loss', title='Training supervision for lr = %s'%lr)
@@ -136,14 +136,42 @@ def train(mod):
     ax2.axis(ymin=0)
     ax2.grid()
     ax2.legend()
-    print("fin",totloss,testloss,file=sys.stderr)
+    print(f"\nfin de l'entrainement\nMSE loss : train = {totloss:.3g}   test = {testloss:.3g}\nR2 score : train = {totr2score:.3g}     test = {testr2score:.3g}")
+
+
+class Cnn(nn.Module):
+    def __init__(self,nhid):
+        super(Cnn, self).__init__()
+        s = [ 
+            torch.nn.Conv1d(1,1,3,1),
+            torch.nn.ReLU(),
+            torch.nn.Conv1d(1,2,2,2),
+            torch.nn.ReLU(),
+            torch.nn.Conv1d(2,3,2,1)
+        ]
+        self.cnn = torch.nn.Sequential(*s)
+        self.mlp = nn.Linear(nhid,1)
+
+    def forward(self,x):
+        # x = B, T, d
+        xx = x.transpose(0,1)
+        y,_=self.cnn(xx)
+        T,B,H = y.shape
+        
+        y = self.mlp(y.view(T*B,H))
+        y = y.view(T,B,-1)
+        y = y.transpose(0,1)
+        return y
 
 
 #The Main:
-mod=Mod(h)
+mod=Cnn(h)
 print("nparms",sum(p.numel() for p in mod.parameters() if p.requires_grad),file=sys.stderr)
 train(mod)
 plt.show()
 
 
 #test du modèle 
+
+
+
