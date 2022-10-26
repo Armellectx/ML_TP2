@@ -2,7 +2,7 @@
 """
 Created on Mon Oct 24 10:39:37 2022
 
-@author: armel
+@author: armelle, enzo
 """
 
 # overfitting
@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 
 dn = 50.
 h=10
-nepochs=1000
+nepochs=2000
 lr = 0.0001
 
 
@@ -67,33 +67,40 @@ class Mod(nn.Module):
         return y
     
     
-    
+def r2_loss(output, target):
+    target_mean = torch.mean(target)
+    ss_tot = torch.sum((target - target_mean) ** 2)
+    ss_res = torch.sum((target - output) ** 2)
+    r2 = 1 - ss_res / ss_tot
+    return r2.detach().numpy()
+
 #compute MSE on test:
 def test(mod):
-    testloss, nbatch = 0., 0
+    testloss, testr2score, nbatch = 0., 0., 0
     for data2 in testloader:
         inputs2, goldy2 = data2
         haty2 = mod(inputs2)
         loss2 = crit(haty2,goldy2)
+        testr2score += r2_loss(haty2,goldy2)
         testloss += loss2.item()
         nbatch += 1
+    testr2score /= float(nbatch)
     testloss /= float(nbatch)
-    return testloss
+    return testloss, testr2score
 
 #Training loop:
 def train(mod):
     optim = torch.optim.Adam(mod.parameters(), lr)
-    plot_values = {"epoch": [], "loss": [], "test_loss":[]}
+    plot_values = {"epoch": [], "loss": [], "test_loss":[], "r2score":[], "test_r2score":[]}
     for epoch in range(nepochs):
-        mod.train(False)
-        testloss = test(mod)
         mod.train(True)
-        totloss, nbatch = 0., 0
+        totloss, totr2score, nbatch = 0., 0., 0
         for data in trainloader:
             inputs, goldy = data
             optim.zero_grad()
             haty = mod(inputs)
             loss = crit(haty,goldy)
+            totr2score += r2_loss(haty, goldy)
             totloss += loss.item()
             nbatch += 1
             loss.backward()
@@ -102,23 +109,33 @@ def train(mod):
 
 
             
-
         totloss /= float(nbatch)
+        totr2score /= float(nbatch)
+        mod.train(False)
+        testloss, testr2score = test(mod)
         plot_values["epoch"].append(epoch)
         plot_values["loss"].append(totloss)
         plot_values["test_loss"].append(testloss)
+        plot_values["r2score"].append(totr2score)
+        plot_values["test_r2score"].append(testr2score)
             
         print(epoch,"err",totloss,testloss)
         
     # Plot loss evolution
-    _, ax = plt.subplots()
-    ax.plot(plot_values["epoch"], plot_values["loss"], 'b', label='training loss')
-    ax.plot(plot_values["epoch"], plot_values["test_loss"], 'g', label='validation loss')
-    ax.set(xlabel='epoch', ylabel='MSE loss', title='Training supervision for lr = %s'%lr)
-    ax.axis(ymin=0)
-    ax.grid()
-    ax.legend()
+    fig, (ax1, ax2) = plt.subplots(2)
+    ax1.plot(plot_values["epoch"], plot_values["loss"], 'b', label='training loss')
+    ax1.plot(plot_values["epoch"], plot_values["test_loss"], 'g', label='validation loss')
+    ax1.set(xlabel='epoch', ylabel='MSE loss', title='Training supervision for lr = %s'%lr)
+    ax1.axis(ymin=0)
+    ax1.grid()
+    ax1.legend()
     
+    ax2.plot(plot_values["epoch"], plot_values["r2score"], 'b', label='training r2 score')
+    ax2.plot(plot_values["epoch"], plot_values["test_r2score"], 'g', label='validation r2 score')
+    ax2.set(xlabel='epoch', ylabel='r2 score')
+    ax2.axis(ymin=0)
+    ax2.grid()
+    ax2.legend()
     print("fin",totloss,testloss,file=sys.stderr)
 
 
