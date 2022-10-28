@@ -142,20 +142,13 @@ def train(mod):
 class Cnn(nn.Module):
     def __init__(self,nhid):
         super(Cnn, self).__init__()
-        s = [ 
-            torch.nn.Conv1d(1,1,3,1),
-            torch.nn.ReLU(),
-            torch.nn.Conv1d(1,2,2,2),
-            torch.nn.ReLU(),
-            torch.nn.Conv1d(2,3,2,1)
-        ]
-        self.cnn = torch.nn.Sequential(*s)
+        self.cnn = nn.Conv1d(1,1,3,1)
         self.mlp = nn.Linear(nhid,1)
 
     def forward(self,x):
         # x = B, T, d
         xx = x.transpose(0,1)
-        y,_=self.cnn(xx)
+        y,_ = self.cnn(xx)
         T,B,H = y.shape
         
         y = self.mlp(y.view(T*B,H))
