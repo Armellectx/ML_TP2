@@ -7,15 +7,14 @@ Created on Mon Oct 24 10:39:37 2022
 
 # overfitting
 
-import sys
 import torch.nn as nn
 import torch
-import numpy as np
 import matplotlib.pyplot as plt
+import time
 
 dn = 50.
 h=10
-nepochs=1500
+nepochs=10000
 lr = 0.0001
 
 
@@ -29,10 +28,6 @@ with open("meteo/2020.csv","r") as f: ls=f.readlines()
 testx = torch.Tensor([float(l.split(',')[1])/dn for l in ls[:-7]]).view(1,-1,1)
 testy = torch.Tensor([float(l.split(',')[1])/dn for l in ls[7:]]).view(1,-1,1)
 
-# trainx = 1, seqlen, 1
-# trainy = 1, seqlen, 1
-
-
 #Tensor to Dataset
     
 trainds = torch.utils.data.TensorDataset(trainx, trainy)
@@ -43,9 +38,6 @@ testloader = torch.utils.data.DataLoader(testds, batch_size=1, shuffle=False)
 
 #on calcule la mean scare error à chaque fois 
 crit = nn.MSELoss()
-
-
-
 
 #Model: simple RNN with a linear regression layer:
 
@@ -98,17 +90,14 @@ def train(mod):
             goldyy = goldy[:,:-2,:] # QUE POUR LE CNN
             optim.zero_grad()
             haty = mod(inputs)
-            print("haty",haty.size())
-            print("goldy",goldyy.size())
+            # print("haty",haty.size())
+            # print("goldy",goldyy.size())
             loss = crit(haty,goldyy)
             totr2score += r2_score(haty, goldyy)
             totloss += loss.item()
             nbatch += 1
             loss.backward()
             optim.step()
-            
-
-
             
         totloss /= float(nbatch)
         totr2score /= float(nbatch)
@@ -148,7 +137,7 @@ class Cnn(nn.Module):
 
     def forward(self,x):
         # B,T,D need B,D,T
-        print("x : ", x.shape)
+        # print("x : ", x.shape)
         y = x.transpose(1,2)
         y = self.cnn(y)
         y = torch.relu(y)
@@ -161,18 +150,13 @@ class Cnn(nn.Module):
         # print("y1 :     ", y.shape)
         y = y.view(T,B,-1)
         y = y.transpose(0,1)
-        print("y2 :     ", y.shape)
+        # print("y2 :     ", y.shape)
         return y
 
 
-#The Main:
+#The Main
 mod=Cnn(h)
-print("nparms",sum(p.numel() for p in mod.parameters() if p.requires_grad),file=sys.stderr)
+start_time = time.time()
 train(mod)
+print(f"Training time : {(time.time() - start_time)} seconds for {nepochs}")
 plt.show()
-
-
-#test du modèle 
-
-
-
