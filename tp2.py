@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 
 dn = 50.
 h=10
-nepochs=1000
+nepochs=1500
 lr = 0.0001
 
 
@@ -67,21 +67,19 @@ class Rnn(nn.Module):
         return y
     
     
-def r2_loss(output, target):
-    target_mean = torch.mean(target)
-    ss_tot = torch.sum((target - target_mean) ** 2)
-    ss_res = torch.sum((target - output) ** 2)
-    r2 = 1 - ss_res / ss_tot
-    return r2.detach().numpy()
+def r2_score(output, target):
+    # print(output.detach().numpy()[0])
+    return 1- torch.sum((target-output.detach().numpy())**2) / torch.sum((target-target.float().mean())**2)
 
 #compute MSE on test:
 def test(mod):
     testloss, testr2score, nbatch = 0., 0., 0
     for data2 in testloader:
         inputs2, goldy2 = data2
+        goldyy2 = goldy2[:,:-2,:] # QUE POUR LE CNN
         haty2 = mod(inputs2)
-        loss2 = crit(haty2,goldy2)
-        testr2score += r2_loss(haty2,goldy2)
+        loss2 = crit(haty2,goldyy2)
+        testr2score += r2_score(haty2,goldyy2)
         testloss += loss2.item()
         nbatch += 1
     testr2score /= float(nbatch)
@@ -97,10 +95,13 @@ def train(mod):
         totloss, totr2score, nbatch = 0., 0., 0
         for data in trainloader:
             inputs, goldy = data
+            goldyy = goldy[:,:-2,:] # QUE POUR LE CNN
             optim.zero_grad()
             haty = mod(inputs)
-            loss = crit(haty,goldy)
-            totr2score += r2_loss(haty, goldy)
+            print("haty",haty.size())
+            print("goldy",goldyy.size())
+            loss = crit(haty,goldyy)
+            totr2score += r2_score(haty, goldyy)
             totloss += loss.item()
             nbatch += 1
             loss.backward()
@@ -142,18 +143,25 @@ def train(mod):
 class Cnn(nn.Module):
     def __init__(self,nhid):
         super(Cnn, self).__init__()
-        self.cnn = nn.Conv1d(1,1,3,1)
+        self.cnn = nn.Conv1d(1,nhid,3,1)
         self.mlp = nn.Linear(nhid,1)
 
     def forward(self,x):
-        # x = B, T, d
-        xx = x.transpose(0,1)
-        y,_ = self.cnn(xx)
-        T,B,H = y.shape
-        
-        y = self.mlp(y.view(T*B,H))
+        # B,T,D need B,D,T
+        print("x : ", x.shape)
+        y = x.transpose(1,2)
+        y = self.cnn(y)
+        y = torch.relu(y)
+        # B,D,T need B*T,D
+        B,D,T = y.shape
+        y = y.transpose(1,2)
+        y = y.view(-1,D)
+        # print("y0 :     ", y.shape)
+        y = self.mlp(y)
+        # print("y1 :     ", y.shape)
         y = y.view(T,B,-1)
         y = y.transpose(0,1)
+        print("y2 :     ", y.shape)
         return y
 
 
